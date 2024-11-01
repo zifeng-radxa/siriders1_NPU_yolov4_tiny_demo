@@ -1,35 +1,33 @@
-## 快速体验
-radxa 提供一个开箱即用的 YOLOv4 目标检测例子，旨在用户可以直接在 sirider s1 使用 AIPU 推理 yolov4_tiny 模型，
-免去复杂的模型编译和执行代码编译， 这对想快速使用 AIPU 而不想从头编译模型的用户是最佳的选择，
-如您对完整工作流程感兴趣可以参考 [详细教程](#详细教程) 章节。
+## Quick Start
+Radxa provides a ready-to-use YOLOv4 object detection example that allows users to run the yolov4_tiny model with AIPU on the Sirider S1 directly. This example eliminates the need for complex model and execution code compilation, making it ideal for users who want to use the AIPU quickly without compiling from scratch. 
 
-- 克隆仓库代码
+- Clone the repository:
     ```bash
     git clone https://github.com/zifeng-radxa/siriders1_NPU_yolov4_tiny_demo.git
     ```
 
-- 安装依赖
+- Install dependencies:
     :::tip
-    建议使用 virtualenv
+    It is recommended to use virtualenv.
     :::
     
     ```bash
-    cd siriders1_NPU_yolov4_tiny_demo
+    cd siriders1_NPU_yolov4_tiny_demo/demo
     pip3 install -r requirements.txt
     ```
 
-- 运行 yolov4 demo 程序
+- Run the yolov4 demo program:
     ```bash
     python3 yolov4_aipu.py -m [mode] -i [your_input_path] -r 
     ```
-    参数解析:
-    
-        `-h`, `--help`: 打印参数信息
+    Parameters:
+
+        `-h`, `--help`: Print parameter information.
  
-        `-m`, `--mode`: 输入模式选择，支持['camera', 'video', 'image']
+        `-m`, `--mode`: Input mode selection, supports ['camera', 'video', 'image'].
 
-        `-i`, `--input`: 输入文件路径, 当 mode 为 ['video', 'image'] 时请提供文件路径 
+        `-i`, `--input`: Input file path; please provide the file path when mode is set to ['video', 'image'].
 
-        `-r`, `--real_time`: 实时预览
+        `-r`, `--real_time`: Real-time preview.
 
-        `-s`, `--save`: 保存输出，保存在 `output` 文件夹
+        `-s`, `--save`: Save output to the `output` folder.
