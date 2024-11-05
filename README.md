@@ -1,3 +1,4 @@
+**For more details please refer to [radxa docs](https://docs.radxa.com/en/sirider/s1/app-development/zhouyi_yolov4)**
 ## Quick Start
 Radxa provides a ready-to-use YOLOv4 object detection example that allows users to run the yolov4_tiny model with AIPU on the Sirider S1 directly. This example eliminates the need for complex model and execution code compilation, making it ideal for users who want to use the AIPU quickly without compiling from scratch. 
 
@@ -31,3 +32,4 @@ Radxa provides a ready-to-use YOLOv4 object detection example that allows users 
         `-r`, `--real_time`: Real-time preview.
 
         `-s`, `--save`: Save output to the `output` folder.
+
