@@ -5,7 +5,10 @@ import time
 import glob
 import argparse
 import sys
-import os 
+import os
+
+from gi.overrides.keysyms import target
+
 
 class Yolov4Demo():
     def __init__(self):
@@ -15,6 +18,7 @@ class Yolov4Demo():
         self.sigma = 0
         self.method = 'nms'
         self.labels = self.make_label_list()
+        self.frame_center = None
 
     def check_camera(self, ):
         video_devices = sorted(glob.glob('/dev/video*'))
@@ -28,8 +32,8 @@ class Yolov4Demo():
 
         print("未检测到摄像头 Exit")
         exit()
-        
-    def make_label_list(self,):
+
+    def make_label_list(self, ):
         with open('labels.txt', 'r') as file:
             lines = [line.strip() for line in file]
 
@@ -63,7 +67,6 @@ class Yolov4Demo():
 
         scale_h = org_h / input_h
         scale_w = org_w / input_w
-
 
         # handle boxes that exceed boundaries
         pred_coor = np.concatenate([np.maximum(pred_coor[..., :2], [0, 0]),
@@ -133,24 +136,24 @@ class Yolov4Demo():
             return best_bboxes
 
         results = nms(bboxes)
+        target_center = None
 
         for result in results:
             box = result[:4].astype(np.int32)
-            box = box - 20 # 有点偏移
+            box = box - 20  # 有点偏移
             score = result[4]
             class_id = int(result[5])
-            if True:
-                box[0] = int(box[0] * scale_w) 
-                box[1] = int(box[1] * scale_h)  
-                box[2] = int(box[2] * scale_w)  
-                box[3] = int(box[3] * scale_h)  
+            if class_id == 0:
+                box[0] = int(box[0] * scale_w)
+                box[1] = int(box[1] * scale_h)
+                box[2] = int(box[2] * scale_w)
+                box[3] = int(box[3] * scale_h)
 
-                box[0] = max(0, min(box[0], org_w - 1)) 
-                box[1] = max(0, min(box[1], org_h - 1))  
-                box[2] = max(0, min(box[2], org_w - 1)) 
-                box[3] = max(0, min(box[3], org_h - 1))  
+                box[0] = max(0, min(box[0], org_w - 1))
+                box[1] = max(0, min(box[1], org_h - 1))
+                box[2] = max(0, min(box[2], org_w - 1))
+                box[3] = max(0, min(box[3], org_h - 1))
 
-                
                 label = "{}".format(self.labels[class_id])
                 score_percentage = round(score * 100, 2)
                 show_text = "{} {}%".format(label, score_percentage)
@@ -159,37 +162,36 @@ class Yolov4Demo():
                 color_index = class_id % 3
                 color = [0, 0, 0]
                 color[color_index] = 255
+                target_center = (box[2] - (box[2] - box[0]) // 2, box[3] - (box[3] - box[1]) // 2)
+                cv2.circle(ol_frame, target_center, 5, (255, 0, 0), 2)
+
                 cv2.rectangle(ol_frame, (box[0], box[1]), (box[2], box[3]), color, 2)
                 text_size, _ = cv2.getTextSize(show_text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
-
-                print(show_text)
 
                 text_x, text_y = box[0] + 1, box[1] - 5
                 bg_x1, bg_y1 = box[0] - 1, text_y - text_size[1] - 2
                 bg_x2, bg_y2 = box[0] + text_size[0] + 2, box[1]
 
-                # # 绘制绿色背景矩形
                 cv2.rectangle(ol_frame, (bg_x1, bg_y1), (bg_x2, bg_y2), color, cv2.FILLED)
-
                 # # 绘制白色文字
                 cv2.putText(ol_frame, show_text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX,
                             font_scale, (255, 255, 255), font_thickness, cv2.LINE_AA)
+                break
 
-        
-        ol_frame = cv2.resize(ol_frame, (ol_w, ol_h))
-        return ol_frame
+        return ol_frame, target_center
 
     def inference(self, ):
         command = "./aipu_test"
         args = ["aipu_yolov4_tiny.bin", "aipu_input.bin"]
         try:
-            result = subprocess.run([command] + args, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True, check=True)
-            print("Command output:", result.stdout)  
+            result = subprocess.run([command] + args, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+                                    check=True)
+            print("Command output:", result.stdout)
         except subprocess.CalledProcessError as e:
             pass
             # print("Command failed with return code:", e.returncode)
             # print("Command stdout:", e.stdout)
-            # print("Command stderr:", e.stderr) 
+            # print("Command stderr:", e.stderr)
 
     def stream_forward(self, camera, args=None):
         if camera:
@@ -200,6 +202,9 @@ class Yolov4Demo():
         fps = self.cap.get(cv2.CAP_PROP_FPS)
         width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.frame_center = (width // 2, height // 2)
+        print(self.frame_center)
+
         if args.save:
             output_path = './output/output_video.mp4'
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -209,17 +214,30 @@ class Yolov4Demo():
             # time0 = time.time()
             ret, frame = self.cap.read()
 
-
             if not ret:
                 print("无法接收帧，结束程序")
                 break
 
-            h,w = frame.shape[0:2]
-
+            h, w = frame.shape[0:2]
 
             self.preprocess(frame)
             self.inference()
-            result_frame = self.postprocess(frame, ol_h=h, ol_w=w, use_resize=False)
+            result_frame, target_center = self.postprocess(frame, ol_h=h, ol_w=w, use_resize=False)
+
+            if target_center is not None and camera:
+                offset = target_center[0] - self.frame_center[0]
+                # print(offset)
+                if abs(offset) > 10:  # 这个阈值测试后设置
+                    if offset > 0:
+                        # 想办法处理漂移，1.现场控制摄像只有一个人，2.；记录 offset > 0 次数多于5次才移动
+                        print("right")
+                        # 向右转
+                        # 可以通过 offset 值控制旋转范围
+                        pass
+                    elif offset < 0:
+                        print("left")
+                        # 向右转
+                        pass
 
             # print("{} ms".format(round((time.time() - time0) * 1000, 3)))
             if args.real_time:
@@ -227,9 +245,9 @@ class Yolov4Demo():
 
             if args.save:
                 out.write(result_frame)
-            
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
+                break
 
         self.cap.release()
         cv2.destroyAllWindows()
@@ -250,10 +268,8 @@ class Yolov4Demo():
                     break
             cv2.destroyAllWindows()
 
-
         if not args.real_time and args.save:
             cv2.imwrite("./output/output.jpg", result)
-
 
 
 if __name__ == '__main__':
@@ -261,9 +277,9 @@ if __name__ == '__main__':
     description = "Zhouyi Z2 AIPU Yolov4_tiny Demo"
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('-m', '--mode', choices=['camera', 'video', 'image'], default='camera', help="input mode")
-    parser.add_argument('-s','--save', action='store_true', help='save result')
-    parser.add_argument('-r','--real_time', action='store_true', help='real time preview')
-    parser.add_argument('-i','--input', required=False, help='input source path')
+    parser.add_argument('-s', '--save', action='store_true', help='save result')
+    parser.add_argument('-r', '--real_time', action='store_true', help='real time preview')
+    parser.add_argument('-i', '--input', required=False, help='input source path')
 
     args = parser.parse_args()
     current_ld_library_path = os.environ.get("LD_LIBRARY_PATH", "")
@@ -272,12 +288,12 @@ if __name__ == '__main__':
 
     if not os.path.exists('./output'):
         os.makedirs('./output', exist_ok=True)
-    
+
     yolo = Yolov4Demo()
 
     if args.mode == "camera":
         yolo.stream_forward(camera=True, args=args)
     elif args.mode == "video":
-        yolo.stream_forward(camera=False,args=args)
+        yolo.stream_forward(camera=False, args=args)
     elif args.mode == "image":
         yolo.image_forward(args=args)
